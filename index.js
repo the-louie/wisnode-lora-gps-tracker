@@ -40,7 +40,7 @@ const initCommands = [
   { send: 'at+mode=0', expect: 'OK', timeout: 10000, fail: 'ERROR' },
   { send: 'at+get_config=dev_eui', expect: 'OK', timeout: 10000, fail: 'ERROR' },
   { send: 'at+set_config=app_eui:70B3D57ED000C56A&app_key:4FAF9456A3E3D9D500888D526E47A9F3', expect: 'OK', timeout: 10000, fail: 'ERROR' },
-  { send: 'at+join=otaa', expect: 'at+recv=3,0,0', fail: 'at+recv=6,0,0', timeout: 60000 }
+  { send: 'at+join=otaa', expect: 'OK', fail: 'at+recv=6,0,0', timeout: 60000 }
 ]
 const initEnd = 'at+recv=3,0,0'
 
@@ -55,7 +55,7 @@ function compressCoords (lon, lat, sat) {
   lon = Math.round((lon - 14) * 10000)
   lat = Math.round((lat - 57) * 10000)
 
-  return toHex(lon, 4) + toHex(lat, 4) + toHex(sat, 1)
+  return toHex(lon < 65535 ? lon : 65535, 4) + toHex(lat < 65535 ? lat : 65535, 4) + toHex(sat < 255 ? sat : 255, 2)
 }
 
 function getGPS () {
@@ -84,7 +84,10 @@ listener.on('TPV', function (tpv) {
         {"PRN":27,"el":71,"az":76,"ss":43,"used":true}]}
 */
 listener.on('SKY', function (sky) {
-  satCount = sky.satellites.length < 15 ? sky.satellites.length : 15
+  if (sky.satellites.length !== satCount) {
+    console.log(`SATS: ${satCount}`)
+    satCount = sky.satellites.length
+  }
 })
 
 listener.connect(function () {
