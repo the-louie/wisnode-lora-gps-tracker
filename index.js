@@ -1,5 +1,6 @@
+const config = require('config.json')
 const SerialPort = require('serialport')
-const port = new SerialPort('/dev/cu.wchusbserial11310', { baudRate: 115200 })
+const port = new SerialPort(config.tty, { baudRate: config.baud })
 
 const fakeGPS = {
   class: 'TPV',
