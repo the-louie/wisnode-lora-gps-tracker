@@ -132,13 +132,15 @@ port.on('open', () => {
       if (data.substr(0, expect.length) === expect) {
 
         initState = initState > initCommands.length ? undefined : initState + 1
-        console.log(`SEND: ${initCommands[initState].send} (${timeout})`)
-        port.write(`${initCommands[initState].send}\r\n`)
-        timeoutID = setTimeout(() => {
-          console.error('ERROR: TIMEOUT')
-          port.close()
-          process.exit(1)
-        }, timeout)
+        if (initState !== undefined) {
+          console.log(`${initState} SEND: ${initCommands[initState].send} (${timeout})`)
+          port.write(`${initCommands[initState].send}\r\n`)
+          timeoutID = setTimeout(() => {
+            console.error('ERROR: TIMEOUT')
+            port.close()
+            process.exit(1)
+          }, timeout)
+        }
       } else {
         console.log(`WARN, expected ${expect}`)
         // port.close()
