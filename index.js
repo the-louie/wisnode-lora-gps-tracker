@@ -1,4 +1,4 @@
-const config = require('config.json')
+const config = require('./config.json')
 const SerialPort = require('serialport')
 const port = new SerialPort(config.tty, { baudRate: config.baud })
 
@@ -20,7 +20,7 @@ const fakeGPS = {
 }
 
 const initCommands = [
-  { send: 'at+reset', expect: 'OK', timeout: 10000, fail: 'ERROR' },
+  // { send: 'at+reset', expect: 'OK', timeout: 10000, fail: 'ERROR' },
   { send: 'at+mode=0', expect: 'OK', timeout: 10000, fail: 'ERROR' },
   { send: 'at+get_config=dev_eui', expect: 'OK', timeout: 10000, fail: 'ERROR' },
   { send: 'at+set_config=app_eui:70B3D57ED000C56A&app_key:4FAF9456A3E3D9D500888D526E47A9F3', expect: 'OK', timeout: 10000, fail: 'ERROR' },
