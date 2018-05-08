@@ -32,7 +32,7 @@ const fakeGPS = {
   mode: 3
 }
 
-let realGPS = {}
+let realGPS = { lat: 0, lon: 0 }
 
 const initCommands = [
   // { send: 'at+reset', expect: 'OK', timeout: 10000, fail: 'ERROR' },
