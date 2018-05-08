@@ -1,6 +1,19 @@
 const config = require('./config.json')
 const SerialPort = require('serialport')
 const port = new SerialPort(config.tty, { baudRate: config.baud })
+const gpsd = require('node-gpsd');
+
+var listener = new gpsd.Listener({
+  port: 2947,
+  hostname: 'localhost',
+  logger: {
+    info: function () {},
+    warn: console.warn,
+    error: console.error
+  },
+  parse: true
+})
+
 
 const fakeGPS = {
   class: 'TPV',
@@ -18,6 +31,8 @@ const fakeGPS = {
   eps: 34.11,
   mode: 3
 }
+
+let realGPS = {}
 
 const initCommands = [
   // { send: 'at+reset', expect: 'OK', timeout: 10000, fail: 'ERROR' },
@@ -43,8 +58,18 @@ function compressCoords (lon, lat) {
 }
 
 function getGPS () {
-  return compressCoords(fakeGPS.lon, fakeGPS.lat)
+  return realGPS !== undefined ? compressCoords(realGPS.lon, realGPS.lat) : undefined
 }
+
+listener.on('TPV', function (tpv) {
+  realGPS = tpv
+  console.log('POS: ', realGPS.lat, realGPS.lon)
+})
+
+listener.connect(function () {
+  console.log('Connected')
+  listener.watch()
+})
 
 port.on('open', () => {
   console.log('PORT OPEN')
@@ -62,13 +87,17 @@ port.on('open', () => {
     if (data.substr(0, initEnd.length) === initEnd) {
       console.log('INIT DONE, CONNECTED!')
       initState = undefined
-      /* at+send=0,2,000000000000007F0000000000000000 */
-      //             00000000000000000000000005FC1E4C
-      // port.write(`at+send=0,2,000000000000000000000000${getGPS()}\r\n`);
-      port.write(`at+send=0,2,${getGPS()}\r\n`);
+      const latlon = getGPS()
+      if (latlon !== undefined) {
+        console.log(`SENDING: at+send=0,2,${latlon}`)
+        port.write(`at+send=0,2,${latlon}\r\n`)
+      }
       setInterval(() => {
-        console.log(`SENDING: at+send=0,2,${getGPS()}`)
-        port.write(`at+send=0,2,${getGPS()}\r\n`);
+        const latlon = getGPS()
+        if (latlon !== undefined) {
+          console.log(`SENDING: at+send=0,2,${latlon}`)
+          port.write(`at+send=0,2,${latlon}\r\n`)
+        }
       }, 60000)
     }
 
