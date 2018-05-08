@@ -131,7 +131,7 @@ port.on('open', () => {
 
       if (data.substr(0, expect.length) === expect) {
 
-        initState = initState > initCommands.length ? undefined : initState + 1
+        initState = initState >= initCommands.length ? undefined : initState + 1
         if (initState !== undefined) {
           console.log(`${initState} SEND: ${initCommands[initState].send} (${timeout})`)
           port.write(`${initCommands[initState].send}\r\n`)
