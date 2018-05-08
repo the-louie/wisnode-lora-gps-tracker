@@ -33,6 +33,7 @@ const fakeGPS = {
 }
 
 let realGPS = { lat: 0, lon: 0 }
+let satCount = 0
 
 const initCommands = [
   // { send: 'at+reset', expect: 'OK', timeout: 10000, fail: 'ERROR' },
@@ -46,15 +47,15 @@ const initEnd = 'at+recv=3,0,0'
 let initState = 0
 let timeoutID = 0
 
-function toHex (d) {
-  return ('0' + (Number(d).toString(16))).slice(-4).toUpperCase()
+function toHex (d, i) {
+  return ('0' + (Number(d).toString(16))).slice(-(i * 2)).toUpperCase().substr(-i)
 }
 
-function compressCoords (lon, lat) {
+function compressCoords (lon, lat, sat) {
   lon = Math.round((lon - 14) * 10000)
   lat = Math.round((lat - 57) * 10000)
 
-  return toHex(lon) + toHex(lat)
+  return toHex(lon, 4) + toHex(lat, 4) + toHex(sat, 1)
 }
 
 function getGPS () {
@@ -66,6 +67,24 @@ listener.on('TPV', function (tpv) {
     realGPS = Object.assign({}, tpv)
     console.log('NEWPOS: ', realGPS.lat, realGPS.lon)
   }
+})
+
+/*
+{"class":"SKY","device":"/dev/pts/1",
+    "time":"2005-07-08T11:28:07.114Z",
+    "xdop":1.55,"hdop":1.24,"pdop":1.99,
+    "satellites":[
+        {"PRN":23,"el":6,"az":84,"ss":0,"used":false},
+        {"PRN":28,"el":7,"az":160,"ss":0,"used":false},
+        {"PRN":8,"el":66,"az":189,"ss":44,"used":true},
+        {"PRN":29,"el":13,"az":273,"ss":0,"used":false},
+        {"PRN":10,"el":51,"az":304,"ss":29,"used":true},
+        {"PRN":4,"el":15,"az":199,"ss":36,"used":true},
+        {"PRN":2,"el":34,"az":241,"ss":43,"used":true},
+        {"PRN":27,"el":71,"az":76,"ss":43,"used":true}]}
+*/
+listener.on('SKY', function (sky) {
+  satCount = sky.satellites.length < 15 ? sky.satellites.length : 15
 })
 
 listener.connect(function () {
