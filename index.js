@@ -62,8 +62,10 @@ function getGPS () {
 }
 
 listener.on('TPV', function (tpv) {
-  realGPS = tpv
-  console.log('POS: ', realGPS.lat, realGPS.lon)
+  if (Math.floor(realGPS.lat * 10000) !== Math.floor(tpv.lat * 10000) && Math.floor(realGPS.lon * 10000) !== Math.floor(tpv.lon * 10000)) {
+    realGPS = Object.assign({}, tpv)
+    console.log('NEWPOS: ', realGPS.lat, realGPS.lon)
+  }
 })
 
 listener.connect(function () {
