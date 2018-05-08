@@ -1,0 +1,1 @@
+Simple naive gps-tracker using Wisnode-LoRa from RAK to send position
