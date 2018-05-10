@@ -1,5 +1,6 @@
 {
     "tty": "/dev/ttyUSB",
     "baud": 115200,
-    "reportInterval": 30000
+    "reportInterval": 30000,
+    "debugInterval": 30000
 }

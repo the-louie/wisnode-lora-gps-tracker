@@ -33,8 +33,10 @@ var gpsdListener = new gpsd.Listener({
 
 let realGPS = { lat: 0, lon: 0 }
 let satCount = 0
+let wisnodeConnected = false
+let gpsConnected = false
 
-const initStart = { send: 'at+reset=0', expect: 'OK', timeout: 10000, fail: 'ERROR' }
+const initStart = { send: 'at+reset=0', expect: 'OK', timeout: 2000, fail: 'ERROR' }
 const initCommands = [
   // { send: 'at+reset=0', expect: 'OK', timeout: 10000, fail: 'ERROR' },
   { send: 'at+mode=0', expect: 'OK', timeout: 10000, fail: 'ERROR' },
@@ -47,10 +49,15 @@ const initEnd = 'at+recv=3,0,0'
 let initState
 let timeoutID = 0
 
+let loraChannel = 0
+
 function toHex (d, i) {
   return ('0' + (Number(d).toString(16))).slice(-(i * 2)).toUpperCase().substr(-i)
 }
 
+function randInt (min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min
+}
 function compressCoords (lon, lat, sat) {
   lon = Math.round((lon - 14) * 10000)
   lat = Math.round((lat - 57) * 10000)
@@ -60,13 +67,17 @@ function compressCoords (lon, lat, sat) {
 
 function getGPS () {
   if (!realGPS || realGPS.lat < 57 || realGPS.lat > 58 || realGPS.lon < 14 || realGPS.lon > 15) {
-    console.log('no GPSTVP: realGPS: ', realGPS)
+    // console.log('no GPSTVP: realGPS: ', realGPS)
     if (realGPS !== undefined) {
-      console.log(`lon: ${realGPS.lon}, lat: ${realGPS.lat}`)
+      // console.log(`lon: ${realGPS.lon}, lat: ${realGPS.lat}`)
     }
     return undefined
   }
   return compressCoords(realGPS.lon, realGPS.lat, satCount)
+}
+
+function debugPrint () {
+  console.log(`LORA: ${wisnodeConnected ? 'CONNECTED' : 'WAITING'} GPS: ${gpsConnected ? 'CONNECTED' : 'WAITING'} ${realGPS.lon} ${realGPS.lat} ${satCount}`)
 }
 
 gpsdListener.on('TPV', function (tpv) {
@@ -75,7 +86,7 @@ gpsdListener.on('TPV', function (tpv) {
   }
   if (Math.floor(realGPS.lat * 10000) !== Math.floor(tpv.lat * 10000) && Math.floor(realGPS.lon * 10000) !== Math.floor(tpv.lon * 10000)) {
     realGPS = Object.assign({}, tpv)
-    console.log('NEWPOS: ', realGPS.lat, realGPS.lon)
+    // console.log('NEWPOS: ', realGPS.lat, realGPS.lon)
   }
 })
 
@@ -101,72 +112,86 @@ gpsdListener.on('SKY', function (sky) {
   const newSatCount = sky.satellites.reduce((acc, curr) => curr.used ? acc + 1 : acc, 0)
   if (newSatCount !== satCount) {
     satCount = newSatCount
-    console.log(`SATS: ${satCount}`)
+    // console.log(`SATS: ${satCount}`)
   }
 })
 
 gpsdListener.connect(function () {
-  console.log('Connected')
+  // console.log('Connected')
+  gpsConnected = true
   gpsdListener.watch()
 })
 
+function wisnodeWrite (data) {
+  console.log(`WISNWRITE: ${data}`)
+  port.write(`${data}\r\n`)
+  loraChannel = loraChannel < 2 ? loraChannel + 1 : 0
+}
+
+function loraSendPos () {
+  const latlon = getGPS()
+  if (latlon !== undefined) {
+    loraChannel = randInt(0, 8)
+    wisnodeWrite(`at+send=0,${loraChannel},${latlon}`)
+  }
+}
+
+function expectedData (expected, data) {
+  return (data.substr(0, expected.length) === expected)
+}
+
+setInterval(debugPrint, config.debugInterval)
+
 port.on('open', () => {
-  console.log('PORT OPEN')
+  // console.log('WISNODE PORT OPEN')
 
   // Reset Wisnode-LoRa board
-  console.log(`SEND: ${initStart.send}`)
-  port.write(`${initStart.send}\r\n`)
+  wisnodeWrite(initStart.send)
+  timeoutID = setTimeout(() => {
+    console.error('ERROR: TIMEOUT')
+    port.close()
+    process.exit(1)
+  }, initStart.timeout)
 
   port.on('readable', () => {
     const data = (port.read()).toString('utf8').replace(/(\n|\r)+$/, '')
-    console.log(`DATA: ${data}`)
-    if (timeoutID !== undefined) {
-      clearTimeout(timeoutID)
-    }
+    console.log(`LORA RECV: ${data}`)
+    if (timeoutID !== undefined) { clearTimeout(timeoutID) }
 
     if (data === 'Welcome to RAK811') {
-      // init
+      // winode is reset, start init sequence
       initState = 0
-      console.log(`SEND: ${initCommands[initState].send}`)
-      port.write(`${initCommands[initState].send}\r\n`)
-    } else if (data.substr(0, initEnd.length) === initEnd) {
-      console.log('INIT DONE, CONNECTED!')
-      initState = undefined
-      const latlon = getGPS()
-      if (latlon !== undefined) {
-        console.log(`SENDING: at+send=0,2,${latlon}`)
-        port.write(`at+send=0,2,${latlon}\r\n`)
-      } else {
-        console.log('NO FIX, NOT SENDING')
-      }
-      setInterval(() => {
-        const latlon = getGPS()
-        if (latlon !== undefined) {
-          console.log(`SENDING: at+send=0,2,${latlon}`)
-          port.write(`at+send=0,2,${latlon}\r\n`)
-        } else {
-          console.log('NO FIX, NOT SENDING')
-        }
-      }, config.reportInterval)
-    } else if (initState !== undefined) {
-      const expect = initCommands[initState].expect
+      wisnodeWrite(initCommands[initState].send)
 
-      if (data.substr(0, expect.length) === expect) {
+    // If we're in the init sequence
+    } else if (initState !== undefined) {
+      if (expectedData(initCommands[initState].expect, data)) {
         initState = initState >= initCommands.length + 2 ? undefined : initState + 1
         if (initState !== undefined && initState < initCommands.length) {
-          const timeout = initCommands[initState].timeout
-          console.log(`${initState} SEND: ${initCommands[initState].send} (${timeout})`)
-          port.write(`${initCommands[initState].send}\r\n`)
+          wisnodeWrite(initCommands[initState].send)
           timeoutID = setTimeout(() => {
             console.error('ERROR: TIMEOUT')
             port.close()
             process.exit(1)
-          }, timeout)
+          }, initCommands[initState].timeout)
         }
+      } else if (expectedData(initCommands[initState].fail, data)) {
+        console.log('FAIL: ', data)
+        port.close()
+        process.exit(1)
+
+      // Exit init sequence if we when we connect to gateway
+      } else if (expectedData(initEnd, data)) {
+        // console.log('INIT DONE, CONNECTED!')
+        initState = undefined
+        wisnodeConnected = true
+        setInterval(() => {
+          loraSendPos()
+        }, config.reportInterval)
+
+      // Unknown message, display a warning
       } else {
-        console.log(`WARN, expected ${expect}`)
-        // port.close()
-        // process.exit(1)
+        console.log(`WARN, expected ${initCommands[initState].expect}`)
       }
     }
   })
