@@ -36,11 +36,14 @@ let satCount = 0
 let wisnodeConnected = false
 let gpsConnected = false
 
-const initStart = { send: 'at+reset=0', expect: 'OK', timeout: 2000, fail: 'ERROR' }
+const initStart = { send: 'at+reset=0', expect: 'OK', timeout: 4000, fail: 'ERROR' }
+
+// at+rf_config=868300000,12,0,1,8,20
 const initCommands = [
   // { send: 'at+reset=0', expect: 'OK', timeout: 10000, fail: 'ERROR' },
   { send: 'at+mode=0', expect: 'OK', timeout: 10000, fail: 'ERROR' },
   { send: 'at+get_config=dev_eui', expect: 'OK', timeout: 10000, fail: 'ERROR' },
+  { send: 'at+rf_config=868300000,12,0,1,8,20', expect: 'OK', fail: 'ERROR', timeout: 10000 },
   { send: 'at+set_config=app_eui:70B3D57ED000C56A&app_key:4FAF9456A3E3D9D500888D526E47A9F3', expect: 'OK', timeout: 10000, fail: 'ERROR' },
   { send: 'at+join=otaa', expect: 'OK', fail: 'at+recv=6,0,0', timeout: 1200000 }
 ]
@@ -149,50 +152,67 @@ port.on('open', () => {
   wisnodeWrite(initStart.send)
   timeoutID = setTimeout(() => {
     console.error('ERROR: TIMEOUT')
+    console.log('--- EXIT --------------------------------------------')
     port.close()
     process.exit(1)
   }, initStart.timeout)
 
   port.on('readable', () => {
     const data = (port.read()).toString('utf8').replace(/(\n|\r)+$/, '')
-    console.log(`LORA RECV: ${data}`)
+    if (expectedData('at+recv=2,0,0', data)) { // Hide accs not from server
+      return
+    }
+    console.log(`LORA RECV: ${data} ${initState !== undefined ? `(@${initState})` : ''}`)
     if (timeoutID !== undefined) { clearTimeout(timeoutID) }
 
-    if (data === 'Welcome to RAK811') {
+    if (data === 'at+recv=6,0,0') {
+      console.log('ERROR: CONNECTION FAILED')
+      console.log('--- EXIT --------------------------------------------')
+      port.close()
+      process.exit(1)
+    } else if (data === 'Welcome to RAK811') {
       // winode is reset, start init sequence
       initState = 0
       wisnodeWrite(initCommands[initState].send)
 
-    // If we're in the init sequence
-    } else if (initState !== undefined) {
-      if (expectedData(initCommands[initState].expect, data)) {
-        initState = initState >= initCommands.length + 2 ? undefined : initState + 1
-        if (initState !== undefined && initState < initCommands.length) {
-          wisnodeWrite(initCommands[initState].send)
-          timeoutID = setTimeout(() => {
-            console.error('ERROR: TIMEOUT')
-            port.close()
-            process.exit(1)
-          }, initCommands[initState].timeout)
-        }
-      } else if (expectedData(initCommands[initState].fail, data)) {
-        console.log('FAIL: ', data)
-        port.close()
-        process.exit(1)
-
-      // Exit init sequence if we when we connect to gateway
-      } else if (expectedData(initEnd, data)) {
-        // console.log('INIT DONE, CONNECTED!')
-        initState = undefined
-        wisnodeConnected = true
-        setInterval(() => {
-          loraSendPos()
-        }, config.reportInterval)
-
-      // Unknown message, display a warning
-      } else {
-        console.log(`WARN, expected ${initCommands[initState].expect}`)
-      }
+    // If we're not in the init sequence exit
+    } else if (initState === undefined) {
+      return
     }
+
+    // Exit init sequence if we when we connect to gateway
+    if (expectedData(initEnd, data)) {
+      console.log('INIT DONE, CONNECTED!')
+      initState = undefined
+      wisnodeConnected = true
+      setInterval(() => {
+        loraSendPos()
+      }, config.reportInterval)
+
+    // if we get an expected result we should act on it
+    } else if (expectedData(initCommands[initState].expect, data)) {
+      initState = initState >= initCommands.length + 2 ? undefined : initState + 1
+      if (initState !== undefined && initState < initCommands.length) {
+        wisnodeWrite(initCommands[initState].send)
+        timeoutID = setTimeout(() => {
+          console.error('ERROR: TIMEOUT')
+          console.log('--- EXIT --------------------------------------------')
+          port.close()
+          process.exit(1)
+        }, initCommands[initState].timeout)
+      }
+
+    // If we get an error we should exit
+    } else if (expectedData(initCommands[initState].fail, data)) {
+      console.log('FAIL: ', data)
+      console.log('--- EXIT --------------------------------------------')
+      port.close()
+      process.exit(1)
+
+    // Unknown message, display a warning
+    } else {
+      console.log(`WARN, expected ${initCommands[initState].expect}`)
+    }
+
   })
 })
