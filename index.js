@@ -35,6 +35,8 @@ let realGPS = { lat: 0, lon: 0 }
 let satCount = 0
 let wisnodeConnected = false
 let gpsConnected = false
+let debugMsgID
+let lastMsgTimestamp = 0
 
 const initStart = { send: 'at+reset=0', expect: 'OK', timeout: 4000, fail: 'ERROR' }
 
@@ -53,6 +55,9 @@ let initState
 let timeoutID = 0
 
 let loraChannel = 0
+let sentMsgCount = 0
+let accMsgCount = 0
+let lastMsgAcc = false
 
 function toHex (d, i) {
   return ('0' + (Number(d).toString(16))).slice(-(i * 2)).toUpperCase().substr(-i)
@@ -79,8 +84,9 @@ function getGPS () {
   return compressCoords(realGPS.lon, realGPS.lat, satCount)
 }
 
-function debugPrint () {
-  console.log(`LORA: ${wisnodeConnected ? 'CONNECTED' : 'WAITING'} GPS: ${gpsConnected ? 'CONNECTED' : 'WAITING'} ${realGPS.lon} ${realGPS.lat} ${satCount}`)
+function debugPrint (accPacket) {
+  const dtime = ((new Date().getTime()) - lastMsgTimestamp)
+  console.log(`${accPacket ? '!' : '*'} LORA: ${wisnodeConnected ? 'UP' : 'DOWN'}|${dtime}ms|${lastMsgAcc}|${sentMsgCount}|${accMsgCount}\tGPS: ${gpsConnected ? 'UP' : 'DOWN'} ${realGPS.lon} ${realGPS.lat} ${satCount}`)
 }
 
 gpsdListener.on('TPV', function (tpv) {
@@ -125,93 +131,92 @@ gpsdListener.connect(function () {
   gpsdListener.watch()
 })
 
-function wisnodeWrite (data) {
-  console.log(`WISNWRITE: ${data}`)
+function wisnodeWrite (obj) {
+  const data = obj.send
+  if (config.verbose || (config.initVerbose && initState !== undefined)) {
+    console.log(`>>> '${data}' (${obj.timeout ? obj.timeout : 'None'})`)
+  }
   port.write(`${data}\r\n`)
-  loraChannel = loraChannel < 2 ? loraChannel + 1 : 0
+  if (obj.timeout !== undefined) {
+    timeoutID = setTimeout(() => { exitError('TIMEOUT') }, obj.timeout)
+  }
 }
 
 function loraSendPos () {
   const latlon = getGPS()
   if (latlon !== undefined) {
     loraChannel = randInt(0, 8)
-    wisnodeWrite(`at+send=0,${loraChannel},${latlon}`)
+    wisnodeWrite({send: `at+send=${config.accPackets ? '1' : '0'},${loraChannel},${latlon}`})
+    sentMsgCount += 1
+    lastMsgAcc = false
+    lastMsgTimestamp = new Date().getTime()
+    debugMsgID = setTimeout(() => debugPrint(false), 10000)
   }
+}
+
+function exitError (msg) {
+  console.error('ERROR:', msg)
+  console.log('--- EXIT --------------------------------------------')
+  port.close()
+  process.exit(1)
 }
 
 function expectedData (expected, data) {
   return (data.substr(0, expected.length) === expected)
 }
 
-setInterval(debugPrint, config.debugInterval)
-
 port.on('open', () => {
   // console.log('WISNODE PORT OPEN')
 
   // Reset Wisnode-LoRa board
-  wisnodeWrite(initStart.send)
-  timeoutID = setTimeout(() => {
-    console.error('ERROR: TIMEOUT')
-    console.log('--- EXIT --------------------------------------------')
-    port.close()
-    process.exit(1)
-  }, initStart.timeout)
+  wisnodeWrite(initStart)
 
   port.on('readable', () => {
     const data = (port.read()).toString('utf8').replace(/(\n|\r)+$/, '')
-    if (expectedData('at+recv=2,0,0', data)) { // Hide accs not from server
-      return
-    }
-    console.log(`LORA RECV: ${data} ${initState !== undefined ? `(@${initState})` : ''}`)
     if (timeoutID !== undefined) { clearTimeout(timeoutID) }
 
-    if (data === 'at+recv=6,0,0') {
-      console.log('ERROR: CONNECTION FAILED')
-      console.log('--- EXIT --------------------------------------------')
-      port.close()
-      process.exit(1)
-    } else if (data === 'Welcome to RAK811') {
-      // winode is reset, start init sequence
-      initState = 0
-      wisnodeWrite(initCommands[initState].send)
+    if (config.verbose || (config.initVerbose && initState !== undefined) || (!expectedData('OK', data) && !expectedData('at+recv=1,0,0', data) && !expectedData('at+recv=2,0,0', data))) {
+      console.log(`<<< ${data} ${initState !== undefined ? `(@${initState})` : ''}`)
+    }
 
-    // If we're not in the init sequence exit
-    } else if (initState === undefined) {
+    // Always reset state when wisnode board is reset
+    if (expectedData('Welcome to RAK811', data)) {
+      // winode is reset, start init sequence
+      console.log('Wisnode board reset. Start init-sequence')
+      initState = 0
+      wisnodeWrite(initCommands[initState])
+    }
+
+    // If we're not in initstate
+    if (initState === undefined) {
+      if (expectedData(initEnd, data)) {
+        // Exit init sequence if we when we connect to gateway
+
+        console.log('INIT DONE, CONNECTED!')
+        initState = undefined
+        wisnodeConnected = true
+
+        setInterval(loraSendPos, config.reportInterval)
+        // setInterval(debugPrint, config.debugInterval)
+      } else if (expectedData('at+recv=6,0,0', data)) {
+        exitError('CONNECTION FAILED')
+      } else if (!lastMsgAcc && expectedData('at+recv=1,', data)) {
+        if (debugMsgID !== undefined) { clearTimeout(debugMsgID) }
+        lastMsgAcc = true
+        accMsgCount += 1
+        debugPrint(true)
+      }
       return
     }
 
-    // Exit init sequence if we when we connect to gateway
-    if (expectedData(initEnd, data)) {
-      console.log('INIT DONE, CONNECTED!')
-      initState = undefined
-      wisnodeConnected = true
-      setInterval(() => {
-        loraSendPos()
-      }, config.reportInterval)
-
     // if we get an expected result we should act on it
-    } else if (expectedData(initCommands[initState].expect, data)) {
-      initState = initState >= initCommands.length + 2 ? undefined : initState + 1
-      if (initState !== undefined && initState < initCommands.length) {
-        wisnodeWrite(initCommands[initState].send)
-        timeoutID = setTimeout(() => {
-          console.error('ERROR: TIMEOUT')
-          console.log('--- EXIT --------------------------------------------')
-          port.close()
-          process.exit(1)
-        }, initCommands[initState].timeout)
-      }
-
+    if (expectedData(initCommands[initState].expect, data)) {
+      initState = initState >= initCommands.length - 1 ? undefined : initState + 1
+      if (initState === undefined) { return } // return if this was the last step in init sequence
+      wisnodeWrite(initCommands[initState]) // send next message
     // If we get an error we should exit
     } else if (expectedData(initCommands[initState].fail, data)) {
-      console.log('FAIL: ', data)
-      console.log('--- EXIT --------------------------------------------')
-      port.close()
-      process.exit(1)
-
-    // Unknown message, display a warning
-    } else {
-      console.log(`WARN, expected ${initCommands[initState].expect}`)
+      exitError(data)
     }
 
   })
