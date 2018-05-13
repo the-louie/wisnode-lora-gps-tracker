@@ -2,6 +2,7 @@ const config = require('./config.json')
 const SerialPort = require('serialport')
 const port = new SerialPort(config.tty, { baudRate: config.baud })
 const gpsd = require('node-gpsd')
+const coords = require('./coordsCompress')
 
 var gpsdListener = new gpsd.Listener({
   port: 2947,
@@ -59,20 +60,13 @@ let sentMsgCount = 0
 let accMsgCount = 0
 let lastMsgAcc = false
 
-function toHex (d, i) {
-  return ('0' + (Number(d).toString(16))).slice(-(i * 2)).toUpperCase().substr(-i)
-}
-
 function randInt (min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
-function compressCoords (lon, lat, sat) {
-  lon = Math.round((lon - 14) * 10000)
-  lat = Math.round((lat - 57) * 10000)
 
-  return toHex(lon < 65535 ? lon : 65535, 4) + toHex(lat < 65535 ? lat : 65535, 4) + toHex(sat < 255 ? sat : 255, 2)
-}
-
+/**
+ * Returns hex-string of compressed coords, or undefined on failure.
+ */
 function getGPS () {
   if (!realGPS || realGPS.lat < 57 || realGPS.lat > 58 || realGPS.lon < 14 || realGPS.lon > 15) {
     // console.log('no GPSTVP: realGPS: ', realGPS)
@@ -81,7 +75,8 @@ function getGPS () {
     }
     return undefined
   }
-  return compressCoords(realGPS.lon, realGPS.lat, satCount)
+  return coords.compress(realGPS.lat, realGPS.lon, satCount, config.centerLat, config.centerLon)
+  // return compressCoords(realGPS.lon, realGPS.lat, satCount)
 }
 
 function debugPrint (accPacket) {

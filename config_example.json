@@ -5,5 +5,7 @@
     "baud": 115200,
     "reportInterval": 30000,
     "debugInterval": 30000,
-    "accPackets": true
+    "accPackets": true,
+    "centerLat": 57.7,
+    "centerLon": 14.6
 }
