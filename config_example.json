@@ -1,6 +1,9 @@
 {
+    "verbose": false,
+    "initVerbose": true,
     "tty": "/dev/ttyUSB",
     "baud": 115200,
     "reportInterval": 30000,
-    "debugInterval": 30000
+    "debugInterval": 30000,
+    "accPackets": true
 }
