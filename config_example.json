@@ -3,7 +3,7 @@
     "initVerbose": true,
     "tty": "/dev/ttyUSB",
     "baud": 115200,
-    "reportInterval": 30000,
+    "reportInterval": 60000,
     "debugInterval": 30000,
     "accPackets": true,
     "centerLat": 57.7,

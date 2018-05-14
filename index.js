@@ -1,6 +1,6 @@
 const config = require('./config.json')
 const SerialPort = require('serialport')
-const port = new SerialPort(config.tty, { baudRate: config.baud })
+const wisnodeSerial = new SerialPort(config.tty, { baudRate: config.baud })
 const gpsd = require('node-gpsd')
 const coords = require('./coordsCompress')
 
@@ -33,7 +33,7 @@ var gpsdListener = new gpsd.Listener({
 // }
 
 let realGPS = { lat: 0, lon: 0 }
-let satCount = 0
+let approxHDOP = 0
 let wisnodeConnected = false
 let gpsConnected = false
 let debugMsgID
@@ -75,13 +75,13 @@ function getGPS () {
     }
     return undefined
   }
-  return coords.compress(realGPS.lat, realGPS.lon, satCount, config.centerLat, config.centerLon)
+  return coords.compress(realGPS.lat, realGPS.lon, approxHDOP, config.centerLat, config.centerLon)
   // return compressCoords(realGPS.lon, realGPS.lat, satCount)
 }
 
 function debugPrint (accPacket) {
   const dtime = ((new Date().getTime()) - lastMsgTimestamp)
-  console.log(`${accPacket ? '!' : '*'} LORA: ${wisnodeConnected ? 'UP' : 'DOWN'}|${dtime}ms|${lastMsgAcc}|${sentMsgCount}|${accMsgCount}\tGPS: ${gpsConnected ? 'UP' : 'DOWN'} ${realGPS.lon} ${realGPS.lat} ${satCount}`)
+  console.log(`${accPacket ? '!' : '*'} LORA: ${wisnodeConnected ? 'UP' : 'DOWN'}|${dtime}ms|${lastMsgAcc}|${sentMsgCount}|${accMsgCount}\tGPS: ${gpsConnected ? 'UP' : 'DOWN'} ${realGPS.lon} ${realGPS.lat} ${approxHDOP}`)
 }
 
 gpsdListener.on('TPV', function (tpv) {
@@ -95,9 +95,13 @@ gpsdListener.on('TPV', function (tpv) {
 })
 
 /*
-{"class":"SKY","device":"/dev/pts/1",
+{
+    "class":"SKY",
+    "device":"/dev/pts/1",
     "time":"2005-07-08T11:28:07.114Z",
-    "xdop":1.55,"hdop":1.24,"pdop":1.99,
+    "xdop":1.55,
+    "hdop":1.24,
+    "pdop":1.99,
     "satellites":[
         {"PRN":23,"el":6,"az":84,"ss":0,"used":false},
         {"PRN":28,"el":7,"az":160,"ss":0,"used":false},
@@ -109,19 +113,13 @@ gpsdListener.on('TPV', function (tpv) {
         {"PRN":27,"el":71,"az":76,"ss":43,"used":true}]}
 */
 
-/**
- * Collect the number of active satellites for reporting
- */
-gpsdListener.on('SKY', function (sky) {
-  const newSatCount = sky.satellites.reduce((acc, curr) => curr.used ? acc + 1 : acc, 0)
-  if (newSatCount !== satCount) {
-    satCount = newSatCount
-    // console.log(`SATS: ${satCount}`)
-  }
+// Get the HDOP value, divide by 2 and cap to 15, we use this to create a
+// 4 bit value to send later.
+gpsdListener.on('SKY', (sky) => {
+  approxHDOP = Math.min(31, Math.floor(sky.hdop / 2))
 })
 
 gpsdListener.connect(function () {
-  // console.log('Connected')
   gpsConnected = true
   gpsdListener.watch()
 })
@@ -129,9 +127,9 @@ gpsdListener.connect(function () {
 function wisnodeWrite (obj) {
   const data = obj.send
   if (config.verbose || (config.initVerbose && initState !== undefined)) {
-    console.log(`>>> '${data}' (${obj.timeout ? obj.timeout : 'None'})`)
+    console.log(`--> '${data}' (${obj.timeout ? obj.timeout : 'None'})`)
   }
-  port.write(`${data}\r\n`)
+  wisnodeSerial.write(`${data}\r\n`)
   if (obj.timeout !== undefined) {
     timeoutID = setTimeout(() => { exitError('TIMEOUT') }, obj.timeout)
   }
@@ -145,14 +143,14 @@ function loraSendPos () {
     sentMsgCount += 1
     lastMsgAcc = false
     lastMsgTimestamp = new Date().getTime()
-    debugMsgID = setTimeout(() => debugPrint(false), 10000)
+    debugMsgID = setTimeout(() => debugPrint(false), config.reportInterval - 10000)
   }
 }
 
 function exitError (msg) {
   console.error('ERROR:', msg)
   console.log('--- EXIT --------------------------------------------')
-  port.close()
+  wisnodeSerial.close()
   process.exit(1)
 }
 
@@ -160,18 +158,16 @@ function expectedData (expected, data) {
   return (data.substr(0, expected.length) === expected)
 }
 
-port.on('open', () => {
-  // console.log('WISNODE PORT OPEN')
-
+wisnodeSerial.on('open', () => {
   // Reset Wisnode-LoRa board
   wisnodeWrite(initStart)
 
-  port.on('readable', () => {
-    const data = (port.read()).toString('utf8').replace(/(\n|\r)+$/, '')
+  wisnodeSerial.on('readable', () => {
+    const data = (wisnodeSerial.read()).toString('utf8').replace(/(\n|\r)+$/, '')
     if (timeoutID !== undefined) { clearTimeout(timeoutID) }
 
     if (config.verbose || (config.initVerbose && initState !== undefined) || (!expectedData('OK', data) && !expectedData('at+recv=1,0,0', data) && !expectedData('at+recv=2,0,0', data))) {
-      console.log(`<<< ${data} ${initState !== undefined ? `(@${initState})` : ''}`)
+      console.log(`<-- ${data} ${initState !== undefined ? `(@${initState})` : ''}`)
     }
 
     // Always reset state when wisnode board is reset
@@ -192,7 +188,6 @@ port.on('open', () => {
         wisnodeConnected = true
 
         setInterval(loraSendPos, config.reportInterval)
-        // setInterval(debugPrint, config.debugInterval)
       } else if (expectedData('at+recv=6,0,0', data)) {
         exitError('CONNECTION FAILED')
       } else if (!lastMsgAcc && expectedData('at+recv=1,', data)) {
@@ -213,6 +208,5 @@ port.on('open', () => {
     } else if (expectedData(initCommands[initState].fail, data)) {
       exitError(data)
     }
-
   })
 })
