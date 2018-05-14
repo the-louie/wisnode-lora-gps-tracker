@@ -38,6 +38,7 @@ let wisnodeConnected = false
 let gpsConnected = false
 let debugMsgID
 let lastMsgTimestamp = 0
+let connectStartTime = 0
 
 const initStart = { send: 'at+reset=0', expect: 'OK', timeout: 4000, fail: 'ERROR' }
 
@@ -174,6 +175,7 @@ wisnodeSerial.on('open', () => {
     if (expectedData('Welcome to RAK811', data)) {
       // winode is reset, start init sequence
       console.log('Wisnode board reset. Start init-sequence')
+      wisnodeConnected = false
       initState = 0
       wisnodeWrite(initCommands[initState])
     }
@@ -182,8 +184,8 @@ wisnodeSerial.on('open', () => {
     if (initState === undefined) {
       if (expectedData(initEnd, data)) {
         // Exit init sequence if we when we connect to gateway
-
-        console.log('INIT DONE, CONNECTED!')
+        const connectTime = (new Date().getTime()) - connectStartTime
+        console.log(`INIT DONE, CONNECTED. Took ${connectTime} ms`)
         initState = undefined
         wisnodeConnected = true
 
@@ -204,6 +206,9 @@ wisnodeSerial.on('open', () => {
       initState = initState >= initCommands.length - 1 ? undefined : initState + 1
       if (initState === undefined) { return } // return if this was the last step in init sequence
       wisnodeWrite(initCommands[initState]) // send next message
+      if (initState === initCommands.length - 1) { // If this was the last command start the timer
+        connectStartTime = new Date().getTime()
+      }
     // If we get an error we should exit
     } else if (expectedData(initCommands[initState].fail, data)) {
       exitError(data)
