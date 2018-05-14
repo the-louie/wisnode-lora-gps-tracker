@@ -51,7 +51,7 @@ function Decoder (data) {
   var bdlon = bin.substr(14, 14)
   var bhdop = bin.substr(28, 4)
   var bhash = bin.substr(32, 8)
-  return {debug: 'dec> hex:' + hex + 'bhash: ' + bdlat + '(' + bdlat.length + ') ' + bdlon + '(' + bdlon.length + ') ' + bhdop + '(' + bhdop.length + ') ' + bhash + '(' + bhash.length + ') (' + bhash.length + ')' }
+  // return {debug: 'dec> hex:' + hex + 'bhash: ' + bdlat + '(' + bdlat.length + ') ' + bdlon + '(' + bdlon.length + ') ' + bhdop + '(' + bhdop.length + ') ' + bhash + '(' + bhash.length + ') (' + bhash.length + ')' }
 
   var calchash = chk8(parseInt(bdlat + bdlon + bhdop, 2).toString(16).split('', 'hex'))
   var dlat = binToInt(bdlat, true)
