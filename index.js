@@ -82,7 +82,7 @@ function getGPS () {
 
 function debugPrint (accPacket) {
   const dtime = ((new Date().getTime()) - lastMsgTimestamp)
-  console.log(`${accPacket ? '!' : '*'} LORA: ${wisnodeConnected ? 'UP' : 'DOWN'}|${dtime}ms|${lastMsgAcc}|${sentMsgCount}|${accMsgCount}\tGPS: ${gpsConnected ? 'UP' : 'DOWN'} ${realGPS.lon} ${realGPS.lat} ${approxHDOP}`)
+  console.log(`${new Date()}\t${config.accPackets ? (accPacket ? '!' : '*') : ''} LORA: ${wisnodeConnected ? 'UP' : 'DOWN'}|${dtime}ms|${config.accPackets ? lastMsgAcc + '|' : ''}${sentMsgCount}|${accMsgCount}\tGPS: ${gpsConnected ? 'UP' : 'DOWN'} ${realGPS.lon.toFixed(4)} ${realGPS.lat.toFixed(4)} ${approxHDOP}`)
 }
 
 gpsdListener.on('TPV', function (tpv) {
