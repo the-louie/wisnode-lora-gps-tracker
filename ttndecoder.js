@@ -2,7 +2,7 @@ var clat = 57.7
 var clon = 14.6
 
 function padStart (sourceString, targetLength, padString) {
-  targetLength = targetLength >> 0 //truncate if number or convert non-number to 0;
+  targetLength = targetLength >> 0 // truncate if number or convert non-number to 0;
   padString = String((typeof padString !== 'undefined' ? padString : ' '))
   if (this.length > targetLength) {
     return String(this)

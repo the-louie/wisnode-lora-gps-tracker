@@ -40,7 +40,7 @@ module.exports = {
     const bdlon = binPad(dlon.toString(2), 14)
     const bhdop = binPad(adopc.toString(2), 4)
 
-    const hash = chk8(new Buffer(parseInt(bdlat + bdlon + bhdop, 2).toString(16), 'hex'))
+    const hash = chk8((parseInt(bdlat + bdlon + bhdop, 2).toString(16), 'hex').split(''))
     const bhash = binPad(hash.toString(2), 8)
 
     // const result = binPad(bdlat + bdlon + bhdop + bhash, 40)
@@ -71,7 +71,7 @@ module.exports = {
     const bhash = bin.substr(32, 8)
     // console.log(`dec> bhash: ${bdlat}(${bdlat.length}) ${bdlon}(${bdlon.length}) ${bhdop}(${bhdop.length}) ${bhash}(${bhash.length}) (${bhash.length})`)
 
-    const calchash = chk8(new Buffer(parseInt(bdlat + bdlon + bhdop, 2).toString(16), 'hex'))
+    const calchash = chk8((parseInt(bdlat + bdlon + bhdop, 2).toString(16), 'hex').split(''))
     const dlat = binToInt(bdlat, true)
     const dlon = binToInt(bdlon, true)
     const hdop = binToInt(bhdop, false) * 2
@@ -102,7 +102,7 @@ function Decoder (hex) {
   var bhash = bin.substr(32, 8)
   // console.log(`dec> bhash: ${bdlat}(${bdlat.length}) ${bdlon}(${bdlon.length}) ${bhdop}(${bhdop.length}) ${bhash}(${bhash.length}) (${bhash.length})`)
 
-  var calchash = chk8(new Buffer(parseInt(bdlat + bdlon + bhdop, 2).toString(16), 'hex'))
+  var calchash = chk8((parseInt(bdlat + bdlon + bhdop, 2).toString(16), 'hex').split(''))
   var dlat = binToInt(bdlat, true)
   var dlon = binToInt(bdlon, true)
   var hdop = binToInt(bhdop, false) * 2
