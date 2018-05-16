@@ -3,6 +3,8 @@
     "initVerbose": true,
     "tty": "/dev/ttyUSB",
     "baud": 115200,
+    "maxReportInterval": 60000,
+    "minReportInterval": 10000,
     "reportInterval": 60000,
     "debugInterval": 30000,
     "accPackets": true,

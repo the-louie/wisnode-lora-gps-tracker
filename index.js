@@ -23,6 +23,7 @@ let approxHDOP = 0
 let wisnodeConnected = false
 let gpsConnected = false
 let debugMsgID
+let loraMsgId
 let lastMsgTimestamp = 0
 let connectStartTime = 0
 
@@ -61,7 +62,7 @@ function getGPS () {
 function logger (str) {
   const logstr = `${new Date()}\t${str}`
   console.log(logstr)
-  fs.appendFile('./records.txt', logstr + '\n', (err) => {
+  fs.appendFile('./tracker.log', logstr + '\n', (err) => {
     if (err) throw err
   })
 }
@@ -111,8 +112,10 @@ function loraSendPos () {
     sentMsgCount += 1
     lastMsgAcc = false
     lastMsgTimestamp = new Date().getTime()
-    debugMsgID = setTimeout(() => debugPrint(false), config.reportInterval - 10000)
   }
+  if (debugMsgID !== undefined) { clearTimeout(debugMsgID) }
+  debugMsgID = setTimeout(() => debugPrint(false), config.reportInterval)
+  loraMsgId = setTimeout(loraSendPos, config.maxReportInterval)
 }
 
 function exitError (msg) {
@@ -158,14 +161,17 @@ wisnodeSerial.on('open', () => {
 
         wisnodeConnected = true
 
-        setInterval(loraSendPos, config.reportInterval)
+        loraSendPos()
       } else if (expectedData('at+recv=6,0,0', data)) {
         exitError('CONNECTION FAILED')
       } else if (!lastMsgAcc && expectedData('at+recv=1,', data)) {
         if (debugMsgID !== undefined) { clearTimeout(debugMsgID) }
+        if (loraMsgId !== undefined) { clearTimeout(loraMsgId) }
         lastMsgAcc = true
         accMsgCount += 1
         debugPrint(true)
+
+        setTimeout(loraSendPos, config.minReportInterval)
       }
       return
     }
