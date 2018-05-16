@@ -9,8 +9,8 @@ var gpsdListener = new gpsd.Listener({
   hostname: 'localhost',
   logger: {
     info: function () {},
-    warn: console.warn,
-    error: console.error
+    warn: consoleTS,
+    error: consoleTS
   },
   parse: true
 })
@@ -70,19 +70,18 @@ function randInt (min, max) {
  */
 function getGPS () {
   if (!realGPS || realGPS.lat < 57 || realGPS.lat > 58 || realGPS.lon < 14 || realGPS.lon > 15) {
-    // console.log('no GPSTVP: realGPS: ', realGPS)
-    if (realGPS !== undefined) {
-      // console.log(`lon: ${realGPS.lon}, lat: ${realGPS.lat}`)
-    }
     return undefined
   }
   return coords.compress(realGPS.lat, realGPS.lon, approxHDOP, config.centerLat, config.centerLon)
-  // return compressCoords(realGPS.lon, realGPS.lat, satCount)
+}
+
+function consoleTS (str) {
+  console.log(`${new Date()}\t${str}`)
 }
 
 function debugPrint (accPacket) {
   const dtime = ((new Date().getTime()) - lastMsgTimestamp)
-  console.log(`${new Date()}\t${config.accPackets ? (accPacket ? '!' : '*') : ''} LORA: ${wisnodeConnected ? 'UP' : 'DOWN'}|${dtime}ms|${config.accPackets ? lastMsgAcc + '|' : ''}${sentMsgCount}|${accMsgCount}\tGPS: ${gpsConnected ? 'UP' : 'DOWN'} ${realGPS.lon.toFixed(4)} ${realGPS.lat.toFixed(4)} ${approxHDOP}`)
+  consoleTS(`${config.accPackets ? (accPacket ? '!' : '*') : ''} LORA: ${wisnodeConnected ? 'UP' : 'DOWN'}|${dtime}ms|${config.accPackets ? lastMsgAcc + '|' : ''}${sentMsgCount}|${accMsgCount}\tGPS: ${gpsConnected ? 'UP' : 'DOWN'} ${realGPS.lon.toFixed(4)} ${realGPS.lat.toFixed(4)} ${approxHDOP}`)
 }
 
 gpsdListener.on('TPV', function (tpv) {
@@ -91,7 +90,6 @@ gpsdListener.on('TPV', function (tpv) {
   }
   if (Math.floor(realGPS.lat * 10000) !== Math.floor(tpv.lat * 10000) && Math.floor(realGPS.lon * 10000) !== Math.floor(tpv.lon * 10000)) {
     realGPS = Object.assign({}, tpv)
-    // console.log('NEWPOS: ', realGPS.lat, realGPS.lon)
   }
 })
 
@@ -128,7 +126,7 @@ gpsdListener.connect(function () {
 function wisnodeWrite (obj) {
   const data = obj.send
   if (config.verbose || (config.initVerbose && initState !== undefined)) {
-    console.log(`--> '${data}' (${obj.timeout ? obj.timeout : 'None'})`)
+    consoleTS(`--> '${data}' (${obj.timeout ? obj.timeout : 'None'})`)
   }
   wisnodeSerial.write(`${data}\r\n`)
   if (obj.timeout !== undefined) {
@@ -149,8 +147,7 @@ function loraSendPos () {
 }
 
 function exitError (msg) {
-  console.error('ERROR:', msg)
-  console.log('--- EXIT --------------------------------------------')
+  consoleTS(`ERROR: ${msg} -------------- EXITING -------------`)
   wisnodeSerial.close()
   process.exit(1)
 }
@@ -168,13 +165,13 @@ wisnodeSerial.on('open', () => {
     if (timeoutID !== undefined) { clearTimeout(timeoutID) }
 
     if (config.verbose || (config.initVerbose && initState !== undefined) || (!expectedData('OK', data) && !expectedData('at+recv=1,0,0', data) && !expectedData('at+recv=2,0,0', data))) {
-      console.log(`<-- ${data} ${initState !== undefined ? `(@${initState})` : ''}`)
+      consoleTS(`<-- ${data} ${initState !== undefined ? `(@${initState})` : ''}`)
     }
 
     // Always reset state when wisnode board is reset
     if (expectedData('Welcome to RAK811', data)) {
       // winode is reset, start init sequence
-      console.log('Wisnode board reset. Start init-sequence')
+      consoleTS('Wisnode board reset. Start init-sequence')
       wisnodeConnected = false
       initState = 0
       wisnodeWrite(initCommands[initState])
@@ -185,7 +182,7 @@ wisnodeSerial.on('open', () => {
       if (expectedData(initEnd, data)) {
         // Exit init sequence if we when we connect to gateway
         const connectTime = (new Date().getTime()) - connectStartTime
-        console.log(`INIT DONE, CONNECTED. Took ${connectTime} ms`)
+        consoleTS(`INIT DONE, CONNECTED. Took ${connectTime} ms`)
         initState = undefined
         wisnodeConnected = true
 
