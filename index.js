@@ -166,6 +166,7 @@ wisnodeSerial.on('open', () => {
       } else if (expectedData('at+recv=6,0,0', data)) {
         exitError('CONNECTION FAILED')
       } else if (!lastMsgAcc && expectedData('at+recv=1,', data)) {
+        // ACC receieved
         lastMsgAcc = true
         accMsgCount += 1
 
@@ -173,7 +174,7 @@ wisnodeSerial.on('open', () => {
         debugPrint(true)
 
         if (loraMsgId !== undefined) { clearTimeout(loraMsgId) }
-        loraMsgId = setTimeout(loraSendPos, config.minReportInterval)
+        loraMsgId = setTimeout(loraSendPos, config.minReportInterval <= 0 ? ((new Date().getTime()) - lastMsgTimestamp) : config.minReportInterval)
       }
       return
     }
