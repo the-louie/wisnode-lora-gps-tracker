@@ -33,7 +33,7 @@ const initCommands = [
   { send: 'at+get_config=dev_eui', expect: 'OK', timeout: 10000, fail: 'ERROR' },
   { send: 'at+rf_config=868300000,12,0,1,8,20', expect: 'OK', fail: 'ERROR', timeout: 10000 },
   { send: 'at+set_config=app_eui:70B3D57ED000C56A&app_key:4FAF9456A3E3D9D500888D526E47A9F3', expect: 'OK', timeout: 10000, fail: 'ERROR' },
-  { send: 'at+join=otaa', expect: 'OK', fail: 'at+recv=6,0,0', timeout: 1200000 }
+  { send: 'at+join=otaa', expect: 'OK', fail: 'at+recv=6,0,0', timeout: 300000 }
 ]
 const initEnd = 'at+recv=3,0,0'
 
@@ -69,7 +69,7 @@ function logger (str) {
 
 function debugPrint (accPacket) {
   const dtime = ((new Date().getTime()) - lastMsgTimestamp)
-  logger(`${config.accPackets ? (accPacket ? '!' : '*') : ''} LORA: ${wisnodeConnected ? 'UP' : 'DOWN'}|${dtime}ms|${config.accPackets ? lastMsgAcc + '|' : ''}${sentMsgCount}|${accMsgCount}\tGPS: ${gpsConnected ? 'UP' : 'DOWN'} ${realGPS.lon.toFixed(4)} ${realGPS.lat.toFixed(4)} ${approxHDOP}`)
+  logger(`${config.accPackets ? (accPacket ? '!' : '*') : ''} LORA: ${wisnodeConnected ? 'UP' : 'DOWN'}|${lastMsgTimestamp === 0 ? '?' : dtime}ms|${config.accPackets ? lastMsgAcc + '|' : ''}${sentMsgCount}|${accMsgCount}\tGPS: ${gpsConnected ? 'UP' : 'DOWN'} ${realGPS.lon.toFixed(4)} ${realGPS.lat.toFixed(4)} ${approxHDOP}`)
 }
 
 gpsdListener.on('TPV', function (tpv) {
@@ -114,6 +114,7 @@ function loraSendPos () {
     lastMsgTimestamp = new Date().getTime()
   }
   if (debugMsgID !== undefined) { clearTimeout(debugMsgID) }
+  if (loraMsgId !== undefined) { clearTimeout(loraMsgId) }
   debugMsgID = setTimeout(() => debugPrint(false), config.reportInterval)
   loraMsgId = setTimeout(loraSendPos, config.maxReportInterval)
 }
@@ -165,13 +166,14 @@ wisnodeSerial.on('open', () => {
       } else if (expectedData('at+recv=6,0,0', data)) {
         exitError('CONNECTION FAILED')
       } else if (!lastMsgAcc && expectedData('at+recv=1,', data)) {
-        if (debugMsgID !== undefined) { clearTimeout(debugMsgID) }
-        if (loraMsgId !== undefined) { clearTimeout(loraMsgId) }
         lastMsgAcc = true
         accMsgCount += 1
+
+        if (debugMsgID !== undefined) { clearTimeout(debugMsgID) }
         debugPrint(true)
 
-        setTimeout(loraSendPos, config.minReportInterval)
+        if (loraMsgId !== undefined) { clearTimeout(loraMsgId) }
+        loraMsgId = setTimeout(loraSendPos, config.minReportInterval)
       }
       return
     }
