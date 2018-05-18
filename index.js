@@ -56,7 +56,7 @@ function getGPS () {
   if (!realGPS || realGPS.lat < 57 || realGPS.lat > 58 || realGPS.lon < 14 || realGPS.lon > 15) {
     return undefined
   }
-  return coords.compress(realGPS.lat, realGPS.lon, approxHDOP, config.centerLat, config.centerLon)
+  return coords.compress(realGPS.lat, realGPS.lon, approxHDOP, config.centerLat, config.centerLon, false)
 }
 
 function logger (str) {
