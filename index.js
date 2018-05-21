@@ -3,6 +3,31 @@ const fs = require('fs')
 const SerialPort = require('serialport')
 const wisnodeSerial = new SerialPort(config.tty, { baudRate: config.baud })
 const gpsd = require('node-gpsd')
+
+let inResetMode = false
+const onoff = require('onoff')
+const Gpio = onoff.Gpio
+const resetPin = new Gpio(config.wisnodResetPin, 'high')
+function gpioWrite (pin, on) {
+  console.log(`--> ${pin} => ${on ? 'ON' : 'OFF'}.`)
+  resetPin.write(on ? 1 : 0, () => {})
+}
+function sendResetWisnode (resetTime) {
+  gpioWrite(config.wisnodResetPin, true)
+  gpioWrite(config.wisnodResetPin, false)
+  setTimeout(() => { gpioWrite(config.wisnodResetPin, true) }, (config.wisnodeResetTime !== undefined ? resetTime : 450))
+}
+
+function resetWisnode () {
+  inResetMode = true
+  sendResetWisnode()
+  setTimeout(sendResetWisnode, 1000)
+  setTimeout(sendResetWisnode, 2000)
+  setTimeout(sendResetWisnode, 3000)
+  setTimeout(sendResetWisnode, 3500)
+  setTimeout(() => { inResetMode = false }, 2100)
+}
+
 const coords = require('./coordsCompress')
 
 var gpsdListener = new gpsd.Listener({
@@ -27,7 +52,7 @@ let loraMsgId
 let lastMsgTimestamp = 0
 let connectStartTime = 0
 
-const initStart = { send: 'at+reset=0', expect: 'OK', timeout: 4000, fail: 'ERROR' }
+// const initStart = { send: 'at+reset=0', expect: 'OK', timeout: 4000, fail: 'ERROR' }
 const initCommands = [
   { send: 'at+mode=0', expect: 'OK', timeout: 10000, fail: 'ERROR' },
   { send: 'at+get_config=dev_eui', expect: 'OK', timeout: 10000, fail: 'ERROR' },
@@ -132,7 +157,8 @@ function expectedData (expected, data) {
 
 wisnodeSerial.on('open', () => {
   // Reset Wisnode-LoRa board
-  wisnodeWrite(initStart)
+  // wisnodeWrite(initStart)
+  resetWisnode()
 
   wisnodeSerial.on('readable', () => {
     const data = (wisnodeSerial.read()).toString('utf8').replace(/(\n|\r)+$/, '')

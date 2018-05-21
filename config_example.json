@@ -10,5 +10,6 @@
     "accPackets": true,
     "centerLat": 57.7,
     "centerLon": 14.6,
-    "sendHash": false
+    "sendHash": false,
+    "wisnodResetPin": 4
 }
