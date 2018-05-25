@@ -43,23 +43,25 @@ module.exports = {
     const bhash = sendHash ? binPad(chk8((parseInt(bdlat + bdlon + bhdop, 2).toString(16), 'hex').split('')).toString(2), 8) : undefined
 
     const result = bdlat + bdlon + bhdop + (bhash !== undefined ? bhash : '')
-
+    console.log('encbin:', result)
     return parseInt(result, 2).toString(16)
   },
   decompress: (hex, clat, clon) => {
-    const bin = binPad(parseInt(hex, 16).toString(2), 40)
-    // console.log('decbin', bin)
+    // If the data have a checksum or not affects it's expected length
+    const bin = binPad(parseInt(hex, 16).toString(2), hex.length <= 8 ? 32 : 40)
+    // console.log('Decoding:', hex, `(${hex.length})`)
+    // console.log('decbin:', bin)
     const bdlat = bin.substr(0, 14)
     const bdlon = bin.substr(14, 14)
     const bhdop = bin.substr(28, 4)
-    const bhash = bin.length > 32 ? bin.substr(32, 8) : undefined
+    const bhash = bin.length > 32 ? bin.substr(32, 8) : ''
     // console.log(`dec> bhash: ${bdlat}(${bdlat.length}) ${bdlon}(${bdlon.length}) ${bhdop}(${bhdop.length}) ${bhash}(${bhash.length}) (${bhash.length})`)
 
     const calchash = chk8((parseInt(bdlat + bdlon + bhdop, 2).toString(16), 'hex').split(''))
     const dlat = binToInt(bdlat, true)
     const dlon = binToInt(bdlon, true)
     const hdop = binToInt(bhdop, false) * 2
-    const inhash = bhash !== undefined ? binToInt(bhash, false) : 'N/A'
+    const inhash = bhash !== '' ? binToInt(bhash, false) : 'N/A'
     const lat = (((clat / 5000) - dlat) / 5000) + clat
     const lon = (((clon / 5000) - dlon) / 5000) + clon
 
