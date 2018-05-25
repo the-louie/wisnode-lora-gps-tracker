@@ -1,0 +1,30 @@
+at+mode=0
+at+get_config=dev_eui
+at+rf_config=433500000,12,0,1,8,20
+at+set_config=app_eui:0000000000000000&app_key:A6B08140DAE1D795EBFA5A6DEE1F4D
+at+set_config=app_eui:39d7119f920f7952&app_key:a6b08140dae1d795ebfa5a6dee1f4dbd
+at+set_config=app_key:A6B08140DAE1D795EBFA5A6DEE1F4DBD
+at+join=otaa
+
+
+/** hkv-norrangen-433 **/
+at+mode=0
+at+set_config=app_key:A6B08140DAE1D795EBFA5A6DEE1F4DBD
+at+join=otaa
+at+send=0,2,000000000000007F0000000000000000
+
+
+/* freq 433 */
+radio 0 enabled (type SX1255), center frequency 434375000, RSSI offset -166.000000, tx enabled 1
+radio 1 enabled (type SX1255), center frequency 433575000, RSSI offset -166.000000, tx enabled 0
+Lora multi-SF channel 0>  radio 1, IF -400000 Hz, 125 kHz bw, SF 7 to 12
+Lora multi-SF channel 1>  radio 1, IF -200000 Hz, 125 kHz bw, SF 7 to 12
+Lora multi-SF channel 2>  radio 1, IF 0 Hz, 125 kHz bw, SF 7 to 12
+Lora multi-SF channel 3>  radio 0, IF -400000 Hz, 125 kHz bw, SF 7 to 12
+Lora multi-SF channel 4>  radio 0, IF -200000 Hz, 125 kHz bw, SF 7 to 12
+Lora multi-SF channel 5>  radio 0, IF 0 Hz, 125 kHz bw, SF 7 to 12
+Lora multi-SF channel 6>  radio 0, IF 200000 Hz, 125 kHz bw, SF 7 to 12
+Lora multi-SF channel 7>  radio 0, IF 400000 Hz, 125 kHz bw, SF 7 to 12
+Lora std channel> radio 1, IF -200000 Hz, 250000 Hz bw, SF 7
+
+

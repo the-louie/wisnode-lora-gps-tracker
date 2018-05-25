@@ -5,11 +5,12 @@
     "baud": 115200,
     "maxReportInterval": 60000,
     "minReportInterval": 10000,
-    "reportInterval": 60000,
+    "reportInterval": 80000,
     "debugInterval": 30000,
     "accPackets": true,
     "centerLat": 57.7,
     "centerLon": 14.6,
     "sendHash": false,
-    "wisnodResetPin": 4
+    "wisnodResetPin": 4,
+    "welcomeString": "Welcome to RAK811"
 }
